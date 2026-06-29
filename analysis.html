@@ -72,6 +72,7 @@ body::before{
 .chart-card:hover{border-color:rgba(0,212,255,.2)}
 .chart-card h3{font-size:13px;font-weight:600;color:#7b98b8;margin-bottom:16px;letter-spacing:.5px}
 .chart-card .chart-wrapper{position:relative;width:100%;height:320px}
+.chart-yaxis{display:none}
 .month-nav{
   display:flex;gap:8px;flex-wrap:wrap;margin-bottom:26px
 }
@@ -122,9 +123,13 @@ body::before{
   .summary-row{grid-template-columns:repeat(2,1fr);gap:10px}
   .summary-card{padding:14px 10px}
   .summary-card .value{font-size:18px}
-  .chart-grid{gap:14px;margin-bottom:24px}
-  .chart-card{padding:14px}
-  .chart-card .chart-wrapper{height:200px}
+  .chart-grid{gap:14px;margin-bottom:24px;max-width:100%;overflow:hidden}
+  .chart-card{padding:14px;overflow:visible}
+  .chart-flex{display:flex;gap:6px;min-width:0;max-width:100%}
+  .chart-yaxis{flex:0 0 42px;display:flex;flex-direction:column;justify-content:space-between;padding:0 4px 0 0;border-right:1px solid rgba(0,212,255,.08);z-index:2}
+  .chart-yaxis span{display:block;text-align:right;font-size:10px;color:#6b8299;line-height:1;white-space:nowrap}
+  .chart-scroll{flex:1;min-width:0;overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch;touch-action:pan-x;overscroll-behavior:contain}
+  .chart-scroll .chart-wrapper{width:700px;height:200px}
   .chart-card h3{font-size:12px;margin-bottom:10px}
   .section-title{font-size:15px;margin:30px 0 16px}
   .month-nav{gap:5px;margin-bottom:18px}
@@ -134,7 +139,7 @@ body::before{
   .month-stats .stat .value{font-size:16px}
   .range-tabs{gap:4px;margin-bottom:12px}
   .range-tabs button{padding:4px 8px;font-size:10px}
-  .data-table{font-size:10px}
+  .data-table{font-size:10px;max-width:100%}
   .data-table th,.data-table td{padding:4px 6px}
   .large-note{font-size:10px}
 }
@@ -143,7 +148,8 @@ body::before{
   .header h1{font-size:17px}
   .summary-row{grid-template-columns:1fr;gap:8px}
   .summary-card .value{font-size:16px}
-  .chart-card .chart-wrapper{height:170px}
+  .chart-yaxis{flex-basis:36px}
+  .chart-scroll .chart-wrapper{width:580px;height:170px}
   .month-nav button{padding:4px 8px;font-size:10px}
   .range-tabs{overflow-x:auto;flex-wrap:nowrap;padding-bottom:4px}
   .range-tabs button{white-space:nowrap;padding:4px 7px;font-size:9px}
@@ -167,15 +173,15 @@ body::before{
 <div class="chart-grid">
   <div class="chart-card">
     <h3>每月总收入趋势</h3>
-    <div class="chart-wrapper"><canvas id="revenueChart"></canvas></div>
+    <div class="chart-flex"><div class="chart-yaxis" id="yaxis-revenue"></div><div class="chart-scroll"><div class="chart-wrapper"><canvas id="revenueChart"></canvas></div></div></div>
   </div>
   <div class="chart-card">
     <h3>每月总单数趋势</h3>
-    <div class="chart-wrapper"><canvas id="ordersChart"></canvas></div>
+    <div class="chart-flex"><div class="chart-yaxis" id="yaxis-orders"></div><div class="chart-scroll"><div class="chart-wrapper"><canvas id="ordersChart"></canvas></div></div></div>
   </div>
   <div class="chart-card">
     <h3>每月平均单均价趋势</h3>
-    <div class="chart-wrapper"><canvas id="avgChart"></canvas></div>
+    <div class="chart-flex"><div class="chart-yaxis" id="yaxis-avg"></div><div class="chart-scroll"><div class="chart-wrapper"><canvas id="avgChart"></canvas></div></div></div>
   </div>
   <div class="chart-card">
     <h3>每月价格区间单数分布</h3>
@@ -187,7 +193,7 @@ body::before{
       <button data-range="1500_2000">1500-2000</button>
       <button data-range="gt2000">2000以上</button>
     </div>
-    <div class="chart-wrapper"><canvas id="rangeChart"></canvas></div>
+    <div class="chart-flex"><div class="chart-yaxis" id="yaxis-range"></div><div class="chart-scroll"><div class="chart-wrapper"><canvas id="rangeChart"></canvas></div></div></div>
   </div>
 </div>
 
@@ -276,6 +282,26 @@ var dataLabelsPlugin = {
   }
 };
 
+
+// Mobile y-axis label sync
+function syncYAxis(chart, yaxisId) {
+  if (window.innerWidth >= 768) return;
+  var el = document.getElementById(yaxisId);
+  if (!el) return;
+  var yScale = chart.scales.y;
+  if (!yScale || !yScale.ticks) return;
+  var tickValues = [];
+  for (var key in yScale.ticks) {
+    var t = yScale.ticks[key];
+    if (t && t.label !== undefined) tickValues.push({ value: t.value, label: t.label });
+  }
+  el.innerHTML = '';
+  for (var i = 0; i < tickValues.length; i++) {
+    var span = document.createElement('span');
+    span.textContent = tickValues[i].label;
+    el.appendChild(span);
+  }
+}
 // === Overall Charts ===
 (function renderOverallCharts() {
   var labels = fullMonths;
@@ -291,7 +317,7 @@ var dataLabelsPlugin = {
     }
   }
 
-  new Chart(document.getElementById('revenueChart'), {
+  var revChart = new Chart(document.getElementById('revenueChart'), {
     type: 'line',
     plugins: [dataLabelsPlugin],
     data: {
@@ -338,6 +364,7 @@ var dataLabelsPlugin = {
           beginAtZero: true,
           grace: '20%',
           ticks: {
+            display: window.innerWidth >= 768,
             color: '#6b8299',
             callback: function(v) { return '¥' + (v / 10000).toFixed(1) + '万'; }
           },
@@ -346,8 +373,9 @@ var dataLabelsPlugin = {
       }
     }
   });
+  syncYAxis(revChart, 'yaxis-revenue');
 
-  new Chart(document.getElementById('ordersChart'), {
+  var ordChart = new Chart(document.getElementById('ordersChart'), {
     type: 'line',
     plugins: [dataLabelsPlugin],
     data: {
@@ -390,12 +418,13 @@ var dataLabelsPlugin = {
         y: {
           beginAtZero: true,
           grace: '20%',
-          ticks: { color: '#6b8299', stepSize: 20 },
+          ticks: { display: window.innerWidth >= 768, color: '#6b8299', stepSize: 20 },
           grid: { color: 'rgba(255,255,255,.04)' }
         }
       }
     }
   });
+  syncYAxis(ordChart, 'yaxis-orders');
 
   // avg chart
   var avgValues = [];
@@ -407,7 +436,7 @@ var dataLabelsPlugin = {
       avgValues.push(0);
     }
   }
-  new Chart(document.getElementById('avgChart'), {
+  var avgChart = new Chart(document.getElementById('avgChart'), {
     type: 'line',
     plugins: [dataLabelsPlugin],
     data: {
@@ -454,6 +483,7 @@ var dataLabelsPlugin = {
           beginAtZero: true,
           grace: '20%',
           ticks: {
+            display: window.innerWidth >= 768,
             color: '#6b8299',
             callback: function(v) { return '¥' + v; }
           },
@@ -462,6 +492,7 @@ var dataLabelsPlugin = {
       }
     }
   });
+  syncYAxis(avgChart, 'yaxis-avg');
 
   // range chart - tab switching
   var rangeTabData = {"1月":{"300":48,"300_500":2,"500_1000":41,"1000_1500":13,"1500_2000":0,"gt2000":0},"2月":{"300":10,"300_500":3,"500_1000":8,"1000_1500":8,"1500_2000":0,"gt2000":0},"3月":{"300":68,"300_500":2,"500_1000":47,"1000_1500":19,"1500_2000":0,"gt2000":0},"4月":{"300":66,"300_500":2,"500_1000":38,"1000_1500":15,"1500_2000":5,"gt2000":0},"5月":{"300":43,"300_500":1,"500_1000":31,"1000_1500":18,"1500_2000":1,"gt2000":0},"6月":{"300":39,"300_500":0,"500_1000":30,"1000_1500":21,"1500_2000":4,"gt2000":3}};
@@ -529,12 +560,13 @@ var dataLabelsPlugin = {
           y: {
             beginAtZero: true,
             grace: '20%',
-            ticks: { color: '#6b8299' },
+              ticks: { display: window.innerWidth >= 768, color: '#6b8299' },
             grid: { color: 'rgba(255,255,255,.04)' }
           }
         }
       }
     });
+    syncYAxis(rangeChartInst, 'yaxis-range');
   }
 
   // initialize range chart tab switching
