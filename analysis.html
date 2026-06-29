@@ -1,0 +1,767 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>业绩数据分析仪表盘</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js">
+</script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Noto Sans SC",sans-serif;
+  background:linear-gradient(135deg,#080c1a 0%,#0f1929 40%,#0a1420 100%);
+  color:#c8d6e5;line-height:1.6;min-height:100vh
+}
+.container{max-width:1280px;margin:0 auto;padding:24px 20px 80px}
+body::before{
+  content:'';position:fixed;top:0;left:0;width:100%;height:100%;
+  background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,212,255,.008) 2px,rgba(0,212,255,.008) 4px);
+  pointer-events:none;z-index:9999
+}
+.header{
+  text-align:center;margin-bottom:36px;padding:40px 0 28px;
+  border-bottom:1px solid rgba(0,212,255,.15);position:relative
+}
+.header::after{
+  content:'';position:absolute;bottom:-1px;left:50%;transform:translateX(-50%);
+  width:200px;height:2px;background:linear-gradient(90deg,transparent,#00d4ff,transparent)
+}
+.header h1{
+  font-size:30px;font-weight:700;color:#fff;
+  letter-spacing:3px;text-shadow:0 0 30px rgba(0,212,255,.2)
+}
+.header p{font-size:14px;color:#6b8299;margin-top:8px;letter-spacing:1px}
+.summary-row{
+  display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));
+  gap:14px;margin-bottom:36px
+}
+.summary-card{
+  background:linear-gradient(135deg,rgba(15,25,45,.8),rgba(10,18,32,.9));
+  border-radius:10px;padding:20px 16px;
+  border:1px solid rgba(0,212,255,.12);
+  box-shadow:0 0 20px rgba(0,212,255,.04),inset 0 1px 0 rgba(255,255,255,.04);
+  text-align:center;position:relative;overflow:hidden;transition:border-color .2s,box-shadow .2s
+}
+.summary-card:hover{border-color:rgba(0,212,255,.3);box-shadow:0 0 30px rgba(0,212,255,.08),inset 0 1px 0 rgba(255,255,255,.04)}
+.summary-card::before{
+  content:'';position:absolute;top:0;left:0;width:100%;height:2px;
+  background:linear-gradient(90deg,transparent,#00d4ff,transparent);opacity:.5
+}
+.summary-card .label{font-size:11px;color:#6b8299;text-transform:uppercase;letter-spacing:1px}
+.summary-card .value{font-size:24px;font-weight:700;color:#fff;margin-top:6px;text-shadow:0 0 20px rgba(0,212,255,.15)}
+.section-title{
+  font-size:18px;font-weight:700;color:#e8edf5;
+  margin:44px 0 22px;padding-bottom:12px;
+  border-bottom:1px solid rgba(0,212,255,.1);
+  display:flex;align-items:center;gap:10px;letter-spacing:1px
+}
+.section-title .badge{
+  font-size:10px;background:rgba(0,212,255,.1);color:#00d4ff;
+  padding:2px 10px;border-radius:3px;font-weight:500;
+  border:1px solid rgba(0,212,255,.15);letter-spacing:0
+}
+.chart-grid{display:grid;grid-template-columns:1fr;gap:22px;margin-bottom:36px}
+.chart-card{
+  background:linear-gradient(135deg,rgba(15,25,45,.85),rgba(10,18,32,.95));
+  border-radius:10px;padding:22px;
+  border:1px solid rgba(0,212,255,.1);
+  box-shadow:0 0 20px rgba(0,212,255,.03),inset 0 1px 0 rgba(255,255,255,.03);
+  transition:border-color .2s
+}
+.chart-card:hover{border-color:rgba(0,212,255,.2)}
+.chart-card h3{font-size:13px;font-weight:600;color:#7b98b8;margin-bottom:16px;letter-spacing:.5px}
+.chart-card .chart-wrapper{position:relative;width:100%;height:320px}
+.month-nav{
+  display:flex;gap:8px;flex-wrap:wrap;margin-bottom:26px
+}
+.month-nav button{
+  padding:9px 22px;border:1px solid rgba(0,212,255,.15);
+  background:rgba(15,25,45,.6);border-radius:6px;
+  font-size:13px;font-weight:600;color:#6b8299;
+  cursor:pointer;transition:all .2s;letter-spacing:.5px
+}
+.month-nav button:hover{border-color:rgba(0,212,255,.35);color:#c8d6e5;background:rgba(0,212,255,.06)}
+.month-nav button.active{background:rgba(0,212,255,.12);color:#00d4ff;border-color:#00d4ff;box-shadow:0 0 20px rgba(0,212,255,.1)}
+.range-tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px}
+.range-tabs button{padding:6px 14px;border:1px solid rgba(0,212,255,.12);background:rgba(15,25,45,.5);border-radius:5px;font-size:12px;font-weight:600;color:#6b8299;cursor:pointer;transition:all .2s;letter-spacing:.3px}
+.range-tabs button:hover{border-color:rgba(0,212,255,.3);color:#c8d6e5;background:rgba(0,212,255,.05)}
+.range-tabs button.active{background:rgba(0,212,255,.1);color:#00d4ff;border-color:rgba(0,212,255,.4);box-shadow:0 0 12px rgba(0,212,255,.08)}
+.month-detail{display:none}
+.month-detail.active{display:block}
+.month-stats{
+  display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:22px
+}
+.month-stats .stat{
+  background:linear-gradient(135deg,rgba(15,25,45,.8),rgba(10,18,32,.9));
+  border-radius:10px;padding:16px;text-align:center;
+  border:1px solid rgba(0,212,255,.1);
+  box-shadow:0 0 15px rgba(0,212,255,.03),inset 0 1px 0 rgba(255,255,255,.03)
+}
+.month-stats .stat .label{font-size:11px;color:#6b8299;letter-spacing:1px}
+.month-stats .stat .value{font-size:22px;font-weight:700;color:#fff;margin-top:6px;text-shadow:0 0 15px rgba(0,212,255,.1)}
+.data-table{width:100%;border-collapse:collapse;margin-top:14px;font-size:12px}
+.data-table th{
+  text-align:right;padding:7px 10px;font-weight:600;color:#7b98b8;
+  border-bottom:1px solid rgba(0,212,255,.1);background:rgba(0,212,255,.03)
+}
+.data-table td{text-align:right;padding:6px 10px;border-bottom:1px solid rgba(255,255,255,.03);color:#a0b8d0}
+.data-table th:first-child,.data-table td:first-child{text-align:left}
+.data-table tbody tr:hover td{background:rgba(0,212,255,.04);color:#e8edf5}
+::-webkit-scrollbar{width:6px;height:6px}
+::-webkit-scrollbar-track{background:#080c1a}
+::-webkit-scrollbar-thumb{background:rgba(0,212,255,.15);border-radius:3px}
+::-webkit-scrollbar-thumb:hover{background:rgba(0,212,255,.3)}
+.large-note{font-size:12px;color:#6b8299;margin-top:14px;border-top:1px solid rgba(0,212,255,.08);padding-top:10px}
+.large-note > div:first-child{font-weight:600;color:#7b98b8;margin-bottom:4px}
+@media(max-width:768px){
+  .container{padding:14px 12px 60px}
+  .header{padding:24px 0 18px;margin-bottom:24px}
+  .header h1{font-size:20px;letter-spacing:2px}
+  .header p{font-size:12px}
+  .summary-row{grid-template-columns:repeat(2,1fr);gap:10px}
+  .summary-card{padding:14px 10px}
+  .summary-card .value{font-size:18px}
+  .chart-grid{gap:14px;margin-bottom:24px}
+  .chart-card{padding:14px}
+  .chart-card .chart-wrapper{height:200px}
+  .chart-card h3{font-size:12px;margin-bottom:10px}
+  .section-title{font-size:15px;margin:30px 0 16px}
+  .month-nav{gap:5px;margin-bottom:18px}
+  .month-nav button{padding:6px 12px;font-size:11px}
+  .month-stats{gap:8px}
+  .month-stats .stat{padding:10px 8px}
+  .month-stats .stat .value{font-size:16px}
+  .range-tabs{gap:4px;margin-bottom:12px}
+  .range-tabs button{padding:4px 8px;font-size:10px}
+  .data-table{font-size:10px}
+  .data-table th,.data-table td{padding:4px 6px}
+  .large-note{font-size:10px}
+}
+@media(max-width:480px){
+  .container{padding:10px 8px 40px}
+  .header h1{font-size:17px}
+  .summary-row{grid-template-columns:1fr;gap:8px}
+  .summary-card .value{font-size:16px}
+  .chart-card .chart-wrapper{height:170px}
+  .month-nav button{padding:4px 8px;font-size:10px}
+  .range-tabs{overflow-x:auto;flex-wrap:nowrap;padding-bottom:4px}
+  .range-tabs button{white-space:nowrap;padding:4px 7px;font-size:9px}
+  .section-title{font-size:13px}
+  .header p{font-size:11px}
+}
+</style>
+</head>
+<body>
+<div class="container">
+
+<div class="header">
+  <h1>业绩数据分析</h1>
+  <p>基于 1月 — 6月 销售数据的多维度分析</p>
+</div>
+
+<div class="summary-row" id="summaryCards"></div>
+
+<div class="section-title">总体数据分析 <span class="badge">趋势</span></div>
+
+<div class="chart-grid">
+  <div class="chart-card">
+    <h3>每月总收入趋势</h3>
+    <div class="chart-wrapper"><canvas id="revenueChart"></canvas></div>
+  </div>
+  <div class="chart-card">
+    <h3>每月总单数趋势</h3>
+    <div class="chart-wrapper"><canvas id="ordersChart"></canvas></div>
+  </div>
+  <div class="chart-card">
+    <h3>每月平均单均价趋势</h3>
+    <div class="chart-wrapper"><canvas id="avgChart"></canvas></div>
+  </div>
+  <div class="chart-card">
+    <h3>每月价格区间单数分布</h3>
+    <div class="range-tabs" id="rangeTabs">
+      <button class="active" data-range="300">300</button>
+      <button data-range="300_500">300-500</button>
+      <button data-range="500_1000">500-1000</button>
+      <button data-range="1000_1500">1000-1500</button>
+      <button data-range="1500_2000">1500-2000</button>
+      <button data-range="gt2000">2000以上</button>
+    </div>
+    <div class="chart-wrapper"><canvas id="rangeChart"></canvas></div>
+  </div>
+</div>
+
+<div class="section-title">各月深度分析 <span class="badge">分布</span></div>
+<div class="month-nav" id="monthNav"></div>
+<div id="monthDetails"></div>
+
+</div>
+
+<script>
+var DATA = {"1月":{"total_revenue":60250,"total_orders":104,"amount_distribution":[{"amount":300,"count":48},{"amount":400,"count":1},{"amount":500,"count":1},{"amount":600,"count":16},{"amount":650,"count":19},{"amount":700,"count":1},{"amount":800,"count":1},{"amount":1000,"count":4},{"amount":1200,"count":6},{"amount":1300,"count":1},{"amount":1500,"count":6}]},"2月":{"total_revenue":20600,"total_orders":29,"amount_distribution":[{"amount":300,"count":10},{"amount":400,"count":2},{"amount":500,"count":1},{"amount":600,"count":2},{"amount":700,"count":2},{"amount":800,"count":1},{"amount":1000,"count":3},{"amount":1200,"count":7},{"amount":1500,"count":1}]},"3月":{"total_revenue":79400,"total_orders":136,"amount_distribution":[{"amount":300,"count":68},{"amount":500,"count":2},{"amount":600,"count":11},{"amount":650,"count":22},{"amount":700,"count":1},{"amount":800,"count":4},{"amount":1000,"count":9},{"amount":1100,"count":1},{"amount":1200,"count":9},{"amount":1300,"count":6},{"amount":1500,"count":3}]},"4月":{"total_revenue":76400,"total_orders":126,"amount_distribution":[{"amount":300,"count":66},{"amount":400,"count":2},{"amount":600,"count":5},{"amount":650,"count":21},{"amount":800,"count":3},{"amount":1000,"count":9},{"amount":1200,"count":8},{"amount":1250,"count":1},{"amount":1300,"count":2},{"amount":1500,"count":4},{"amount":1600,"count":3},{"amount":1700,"count":1},{"amount":1800,"count":1}]},"5月":{"total_revenue":58400,"total_orders":94,"amount_distribution":[{"amount":300,"count":43},{"amount":500,"count":1},{"amount":600,"count":2},{"amount":650,"count":26},{"amount":800,"count":2},{"amount":1000,"count":1},{"amount":1200,"count":13},{"amount":1300,"count":2},{"amount":1500,"count":3},{"amount":1600,"count":1}]},"6月":{"total_revenue":77650,"total_orders":97,"amount_distribution":[{"amount":300,"count":39},{"amount":600,"count":5},{"amount":650,"count":12},{"amount":750,"count":3},{"amount":800,"count":6},{"amount":1000,"count":4},{"amount":1200,"count":8},{"amount":1300,"count":1},{"amount":1400,"count":1},{"amount":1500,"count":11},{"amount":1600,"count":2},{"amount":1800,"count":2},{"amount":2500,"count":2},{"amount":3500,"count":1}]}};
+
+var months = Object.keys(DATA);
+var fullMonths = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
+
+var colors = ['#00d4ff','#4f8cff','#00e676','#ffd740','#ff5252','#b388ff','#ff80ab','#448aff','#69f0ae','#ffd54f','#ea80fc','#ff6e40','#18ffff','#c6ff00','#ffab40','#536dfe','#b2ff59','#64ffda','#ff4081','#7c4dff'];
+
+var LARGE_THRESHOLD = 10000;
+function splitDistribution(dist) {
+  var normal = [], large = [];
+  for (var i = 0; i < dist.length; i++) {
+    if (dist[i].amount >= LARGE_THRESHOLD) large.push(dist[i]);
+    else normal.push(dist[i]);
+  }
+  return { normal: normal, large: large };
+}
+
+// === Summary Cards ===
+(function renderSummary() {
+  var totalRev = 0, totalOrd = 0;
+  for (var i = 0; i < months.length; i++) {
+    totalRev += DATA[months[i]].total_revenue;
+    totalOrd += DATA[months[i]].total_orders;
+  }
+  var avgRev = Math.round(totalRev / months.length);
+  var avgOrd = Math.round(totalOrd / months.length);
+  var maxMonth = months[0], minMonth = months[0];
+  for (var i = 1; i < months.length; i++) {
+    if (DATA[months[i]].total_revenue > DATA[maxMonth].total_revenue) maxMonth = months[i];
+    if (DATA[months[i]].total_revenue < DATA[minMonth].total_revenue) minMonth = months[i];
+  }
+  document.getElementById('summaryCards').innerHTML =
+    '<div class="summary-card"><div class="label">总营收</div><div class="value">¥' + totalRev.toLocaleString() + '</div></div>' +
+    '<div class="summary-card"><div class="label">总订单数</div><div class="value">' + totalOrd.toLocaleString() + '</div></div>' +
+    '<div class="summary-card"><div class="label">月均营收</div><div class="value">¥' + avgRev.toLocaleString() + '</div></div>' +
+    '<div class="summary-card"><div class="label">月均单数</div><div class="value">' + avgOrd + '</div></div>' +
+    '<div class="summary-card"><div class="label">最高营收月</div><div class="value" style="font-size:15px;color:#00e676">' + maxMonth + '</div></div>' +
+    '<div class="summary-card"><div class="label">最低营收月</div><div class="value" style="font-size:15px;color:#ff5252">' + minMonth + '</div></div>';
+})();
+
+// === Data Labels Plugin ===
+var dataLabelsPlugin = {
+  id: 'datalabels',
+  afterDatasetsDraw: function(chart) {
+    var ctx = chart.ctx;
+    for (var d = 0; d < chart.data.datasets.length; d++) {
+      var dataset = chart.data.datasets[d];
+      var meta = chart.getDatasetMeta(d);
+      for (var i = 0; i < meta.data.length; i++) {
+        var value = dataset.data[i];
+        var position = meta.data[i].getCenterPoint();
+        var text;
+        if (value >= 10000) {
+          text = '¥' + (value / 10000).toFixed(1) + '万';
+        } else if (dataset.label === '总单数') {
+          text = value.toString();
+        } else if (dataset.label && dataset.label.indexOf('¥') >= 0) {
+          text = '¥' + value.toLocaleString();
+        } else {
+          text = value.toString();
+        }
+        ctx.save();
+        ctx.font = 'bold 13px -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'bottom';
+        ctx.shadowColor = dataset.borderColor || '#00d4ff';
+        ctx.shadowBlur = 10;
+        ctx.fillStyle = '#ffffff';
+        ctx.fillText(text, position.x, position.y - 8);
+        ctx.shadowBlur = 0;
+        ctx.fillStyle = dataset.borderColor || '#00d4ff';
+        ctx.fillText(text, position.x, position.y - 8);
+        ctx.restore();
+      }
+    }
+  }
+};
+
+// === Overall Charts ===
+(function renderOverallCharts() {
+  var labels = fullMonths;
+  var revenues = [];
+  var orders = [];
+  for (var i = 0; i < fullMonths.length; i++) {
+    if (fullMonths[i] in DATA) {
+      revenues.push(DATA[fullMonths[i]].total_revenue);
+      orders.push(DATA[fullMonths[i]].total_orders);
+    } else {
+      revenues.push(0);
+      orders.push(0);
+    }
+  }
+
+  new Chart(document.getElementById('revenueChart'), {
+    type: 'line',
+    plugins: [dataLabelsPlugin],
+    data: {
+      labels: labels,
+      datasets: [{
+        label: '总收入 (¥)',
+        data: revenues,
+        borderColor: '#00d4ff',
+        backgroundColor: 'rgba(0,212,255,.08)',
+        fill: true,
+        tension: .35,
+        pointBackgroundColor: '#00d4ff',
+        pointBorderColor: '#080c1a',
+        pointBorderWidth: 2,
+        pointRadius: 5,
+        pointHoverRadius: 8,
+        borderWidth: 3
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      layout: { padding: { top: 30 } },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: 'rgba(8,12,26,.9)',
+          titleColor: '#e8edf5',
+          bodyColor: '#c8d6e5',
+          borderColor: 'rgba(0,212,255,.2)',
+          borderWidth: 1,
+          padding: 10,
+          callbacks: {
+            label: function(ctx) { return '¥' + ctx.parsed.y.toLocaleString(); }
+          }
+        }
+      },
+      scales: {
+        x: {
+          ticks: { color: '#6b8299' },
+          grid: { color: 'rgba(255,255,255,.04)' }
+        },
+        y: {
+          beginAtZero: true,
+          grace: '20%',
+          ticks: {
+            color: '#6b8299',
+            callback: function(v) { return '¥' + (v / 10000).toFixed(1) + '万'; }
+          },
+          grid: { color: 'rgba(255,255,255,.04)' }
+        }
+      }
+    }
+  });
+
+  new Chart(document.getElementById('ordersChart'), {
+    type: 'line',
+    plugins: [dataLabelsPlugin],
+    data: {
+      labels: labels,
+      datasets: [{
+        label: '总单数',
+        data: orders,
+        borderColor: '#00e676',
+        backgroundColor: 'rgba(0,230,118,.08)',
+        fill: true,
+        tension: .35,
+        pointBackgroundColor: '#00e676',
+        pointBorderColor: '#080c1a',
+        pointBorderWidth: 2,
+        pointRadius: 5,
+        pointHoverRadius: 8,
+        borderWidth: 3
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      layout: { padding: { top: 30 } },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: 'rgba(8,12,26,.9)',
+          titleColor: '#e8edf5',
+          bodyColor: '#c8d6e5',
+          borderColor: 'rgba(0,230,118,.2)',
+          borderWidth: 1,
+          padding: 10
+        }
+      },
+      scales: {
+        x: {
+          ticks: { color: '#6b8299' },
+          grid: { color: 'rgba(255,255,255,.04)' }
+        },
+        y: {
+          beginAtZero: true,
+          grace: '20%',
+          ticks: { color: '#6b8299', stepSize: 20 },
+          grid: { color: 'rgba(255,255,255,.04)' }
+        }
+      }
+    }
+  });
+
+  // avg chart
+  var avgValues = [];
+  for (var i = 0; i < fullMonths.length; i++) {
+    if (fullMonths[i] in DATA) {
+      var d = DATA[fullMonths[i]];
+      avgValues.push(Math.round(d.total_revenue / d.total_orders));
+    } else {
+      avgValues.push(0);
+    }
+  }
+  new Chart(document.getElementById('avgChart'), {
+    type: 'line',
+    plugins: [dataLabelsPlugin],
+    data: {
+      labels: labels,
+      datasets: [{
+        label: '单均价 (¥)',
+        data: avgValues,
+        borderColor: '#b388ff',
+        backgroundColor: 'rgba(179,136,255,.08)',
+        fill: true,
+        tension: .35,
+        pointBackgroundColor: '#b388ff',
+        pointBorderColor: '#080c1a',
+        pointBorderWidth: 2,
+        pointRadius: 5,
+        pointHoverRadius: 8,
+        borderWidth: 3
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      layout: { padding: { top: 30 } },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: 'rgba(8,12,26,.9)',
+          titleColor: '#e8edf5',
+          bodyColor: '#c8d6e5',
+          borderColor: 'rgba(179,136,255,.2)',
+          borderWidth: 1,
+          padding: 10,
+          callbacks: {
+            label: function(ctx) { return '¥' + ctx.parsed.y.toLocaleString(); }
+          }
+        }
+      },
+      scales: {
+        x: {
+          ticks: { color: '#6b8299' },
+          grid: { color: 'rgba(255,255,255,.04)' }
+        },
+        y: {
+          beginAtZero: true,
+          grace: '20%',
+          ticks: {
+            color: '#6b8299',
+            callback: function(v) { return '¥' + v; }
+          },
+          grid: { color: 'rgba(255,255,255,.04)' }
+        }
+      }
+    }
+  });
+
+  // range chart - tab switching
+  var rangeTabData = {"1月":{"300":48,"300_500":2,"500_1000":41,"1000_1500":13,"1500_2000":0,"gt2000":0},"2月":{"300":10,"300_500":3,"500_1000":8,"1000_1500":8,"1500_2000":0,"gt2000":0},"3月":{"300":68,"300_500":2,"500_1000":47,"1000_1500":19,"1500_2000":0,"gt2000":0},"4月":{"300":66,"300_500":2,"500_1000":38,"1000_1500":15,"1500_2000":5,"gt2000":0},"5月":{"300":43,"300_500":1,"500_1000":31,"1000_1500":18,"1500_2000":1,"gt2000":0},"6月":{"300":39,"300_500":0,"500_1000":30,"1000_1500":21,"1500_2000":4,"gt2000":3}};
+  var rangeTabKeys = ['300','300_500','500_1000','1000_1500','1500_2000','gt2000'];
+  var rangeTabLabels = ['300','300-500','500-1000','1000-1500','1500-2000','2000以上'];
+  var rangeTabColors = ['#ff5252','#ffd740','#00d4ff','#00e676','#b388ff','#ff6e40'];
+  var rangeChartInst = null;
+
+  function renderRangeChart(key) {
+    if (rangeChartInst) { rangeChartInst.destroy(); rangeChartInst = null; }
+    var idx = rangeTabKeys.indexOf(key);
+    var color = rangeTabColors[idx];
+    var label = rangeTabLabels[idx];
+    var values = [];
+    for (var m = 0; m < fullMonths.length; m++) {
+      if (fullMonths[m] in rangeTabData) {
+        values.push(rangeTabData[fullMonths[m]][key]);
+      } else {
+        values.push(0);
+      }
+    }
+    rangeChartInst = new Chart(document.getElementById('rangeChart'), {
+      type: 'line',
+      plugins: [dataLabelsPlugin],
+      data: {
+        labels: labels,
+        datasets: [{
+          label: label,
+          data: values,
+          borderColor: color,
+          backgroundColor: color + '22',
+          fill: true,
+          tension: .35,
+          pointBackgroundColor: color,
+          pointBorderColor: '#080c1a',
+          pointBorderWidth: 2,
+          pointRadius: 5,
+          pointHoverRadius: 8,
+          borderWidth: 3
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        layout: { padding: { top: 30 } },
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            backgroundColor: 'rgba(8,12,26,.9)',
+            titleColor: '#e8edf5',
+            bodyColor: '#c8d6e5',
+            borderColor: 'rgba(0,212,255,.2)',
+            borderWidth: 1,
+            padding: 10,
+            callbacks: {
+              label: function(ctx) { return ctx.parsed.y + ' 单'; }
+            }
+          }
+        },
+        scales: {
+          x: {
+            ticks: { color: '#6b8299' },
+            grid: { color: 'rgba(255,255,255,.04)' }
+          },
+          y: {
+            beginAtZero: true,
+            grace: '20%',
+            ticks: { color: '#6b8299' },
+            grid: { color: 'rgba(255,255,255,.04)' }
+          }
+        }
+      }
+    });
+  }
+
+  // initialize range chart tab switching
+  document.getElementById('rangeTabs').addEventListener('click', function(e) {
+    var btn = e.target.closest('button');
+    if (!btn) return;
+    var key = btn.dataset.range;
+    var allBtns = document.querySelectorAll('.range-tabs button');
+    for (var b = 0; b < allBtns.length; b++) allBtns[b].classList.remove('active');
+    btn.classList.add('active');
+    renderRangeChart(key);
+  });
+
+  renderRangeChart('300');
+})();
+
+// === Per-Sheet Analysis ===
+var chartInstances = {};
+
+function destroyCharts(month) {
+  for (var t = 0; t < ['pie','bar'].length; t++) {
+    var key = ['pie','bar'][t] + '-' + month;
+    if (chartInstances[key]) {
+      chartInstances[key].destroy();
+      delete chartInstances[key];
+    }
+  }
+}
+
+function renderMonthCharts(month) {
+  var data = DATA[month];
+  var split = splitDistribution(data.amount_distribution);
+  var normal = split.normal;
+  var large = split.large;
+  var allItems = normal.concat(large);
+  var totalOrders = data.total_orders;
+
+  var pieLabels = [];
+  var pieValues = [];
+  var pieColors = [];
+  for (var i = 0; i < allItems.length; i++) {
+    pieLabels.push('¥' + allItems[i].amount.toLocaleString());
+    pieValues.push(allItems[i].count);
+    pieColors.push(colors[i % colors.length]);
+  }
+
+  chartInstances['pie-' + month] = new Chart(document.getElementById('pie-' + month), {
+    type: 'pie',
+    data: {
+      labels: pieLabels,
+      datasets: [{
+        data: pieValues,
+        backgroundColor: pieColors,
+        borderColor: '#0f1929',
+        borderWidth: 2
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          position: 'right',
+          labels: { color: '#a0b8d0', font: { size: 11 }, padding: 10, boxWidth: 14 }
+        },
+        tooltip: {
+          backgroundColor: 'rgba(8,12,26,.9)',
+          titleColor: '#e8edf5',
+          bodyColor: '#c8d6e5',
+          borderColor: 'rgba(0,212,255,.2)',
+          borderWidth: 1,
+          padding: 10,
+          callbacks: {
+            label: function(ctx) {
+              var total = 0;
+              for (var j = 0; j < ctx.dataset.data.length; j++) total += ctx.dataset.data[j];
+              var pct = (ctx.parsed / total * 100).toFixed(1);
+              return ctx.label + ': ' + ctx.parsed + ' 单 (' + pct + '%)';
+            }
+          }
+        }
+      }
+    }
+  });
+
+  var barLabels = [];
+  var barValues = [];
+  var barColors = [];
+  for (var i = 0; i < normal.length; i++) {
+    barLabels.push('¥' + normal[i].amount.toLocaleString());
+    barValues.push(normal[i].count);
+    barColors.push(colors[i % colors.length] + '88');
+  }
+  var barBorderColors = [];
+  for (var i = 0; i < normal.length; i++) {
+    barBorderColors.push(colors[i % colors.length]);
+  }
+
+  chartInstances['bar-' + month] = new Chart(document.getElementById('bar-' + month), {
+    type: 'bar',
+    data: {
+      labels: barLabels,
+      datasets: [{
+        label: '单量',
+        data: barValues,
+        backgroundColor: barColors,
+        borderColor: barBorderColors,
+        borderWidth: 1,
+        borderRadius: 3
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: 'rgba(8,12,26,.9)',
+          titleColor: '#e8edf5',
+          bodyColor: '#c8d6e5',
+          borderColor: 'rgba(0,212,255,.2)',
+          borderWidth: 1,
+          padding: 10,
+          callbacks: { label: function(ctx) { return ctx.parsed.y + ' 单'; } }
+        }
+      },
+      scales: {
+        x: {
+          ticks: { color: '#6b8299', font: { size: 10 }, maxRotation: 45, autoSkip: true, maxTicksLimit: 20 },
+          grid: { color: 'rgba(255,255,255,.03)' }
+        },
+        y: {
+          beginAtZero: true,
+          ticks: { color: '#6b8299', stepSize: 10, font: { size: 10 } },
+          grid: { color: 'rgba(255,255,255,.03)' }
+        }
+      }
+    }
+  });
+
+  if (large.length > 0) {
+    var largeHtml = '<div style="font-size:12px;color:#6b8299;margin-top:14px;border-top:1px solid rgba(0,212,255,.08);padding-top:10px">';
+    largeHtml += '<div style="font-weight:600;color:#7b98b8;margin-bottom:4px">大额订单：</div>';
+    for (var i = 0; i < large.length; i++) {
+      largeHtml += '<div>¥' + large[i].amount.toLocaleString() + ' × ' + large[i].count + ' 单 (' + (large[i].count / totalOrders * 100).toFixed(1) + '%)</div>';
+    }
+    largeHtml += '</div>';
+
+    var pieCard = document.querySelector('.month-detail[data-month="' + month + '"] .chart-card:first-child');
+    if (pieCard) {
+      var existing = pieCard.querySelector('.large-note');
+      if (!existing) {
+        var div = document.createElement('div');
+        div.className = 'large-note';
+        div.innerHTML = largeHtml;
+        pieCard.appendChild(div);
+      }
+    }
+  }
+}
+
+(function init() {
+  var nav = document.getElementById('monthNav');
+  var detail = document.getElementById('monthDetails');
+
+  nav.innerHTML = '';
+  for (var i = 0; i < months.length; i++) {
+    nav.innerHTML += '<button class="' + (i === 0 ? 'active' : '') + '" data-month="' + months[i] + '">' + months[i] + '</button>';
+  }
+
+  detail.innerHTML = '';
+  for (var m = 0; m < months.length; m++) {
+    var month = months[m];
+    var data = DATA[month];
+    var split = splitDistribution(data.amount_distribution);
+    var normal = split.normal;
+    var large = split.large;
+
+    var tableRows = '';
+    for (var d = 0; d < normal.length; d++) {
+      tableRows += '<tr><td>¥' + normal[d].amount.toLocaleString() + '</td><td>' + normal[d].count + '</td><td>' + (normal[d].count / data.total_orders * 100).toFixed(1) + '%</td></tr>';
+    }
+    for (var d = 0; d < large.length; d++) {
+      tableRows += '<tr><td>¥' + large[d].amount.toLocaleString() + '</td><td>' + large[d].count + '</td><td>' + (large[d].count / data.total_orders * 100).toFixed(1) + '%</td></tr>';
+    }
+
+    detail.innerHTML += '<div class="month-detail" data-month="' + month + '">' +
+      '<div class="month-stats">' +
+        '<div class="stat"><div class="label">月营收</div><div class="value">¥' + data.total_revenue.toLocaleString() + '</div></div>' +
+        '<div class="stat"><div class="label">总单数</div><div class="value">' + data.total_orders + '</div></div>' +
+        '<div class="stat"><div class="label">单均价</div><div class="value">¥' + Math.round(data.total_revenue / data.total_orders) + '</div></div>' +
+      '</div>' +
+      '<div class="chart-grid">' +
+        '<div class="chart-card">' +
+          '<h3>金额分布占比</h3>' +
+          '<div class="chart-wrapper"><canvas id="pie-' + month + '"></canvas></div>' +
+          '<div style="max-height:200px;overflow-y:auto;margin-top:12px">' +
+            '<table class="data-table"><thead><tr><th>金额</th><th>单量</th><th>占比</th></tr></thead><tbody>' +
+            tableRows + '</tbody></table>' +
+          '</div>' +
+        '</div>' +
+        '<div class="chart-card">' +
+          '<h3>金额 × 单量分布</h3>' +
+          '<div class="chart-wrapper"><canvas id="bar-' + month + '"></canvas></div>' +
+        '</div>' +
+      '</div>' +
+    '</div>';
+  }
+
+  nav.addEventListener('click', function(e) {
+    var btn = e.target.closest('button');
+    if (!btn) return;
+    var month = btn.dataset.month;
+    var allBtns = document.querySelectorAll('.month-nav button');
+    for (var i = 0; i < allBtns.length; i++) allBtns[i].classList.remove('active');
+    btn.classList.add('active');
+    var details = document.querySelectorAll('.month-detail');
+    for (var i = 0; i < details.length; i++) details[i].classList.remove('active');
+    var target = document.querySelector('.month-detail[data-month="' + month + '"]');
+    if (target) target.classList.add('active');
+    destroyCharts(month);
+    renderMonthCharts(month);
+  });
+
+  document.querySelector('.month-detail').classList.add('active');
+  renderMonthCharts(months[0]);
+})();
+</script>
+</body>
+</html>
